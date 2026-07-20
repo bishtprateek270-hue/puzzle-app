@@ -1,5 +1,8 @@
 target/
+build/
+.gradle/
 !.mvn/wrapper/maven-wrapper.jar
+!.gradle/wrapper/gradle-wrapper.jar
 
 ### IDE Settings ###
 .idea/
@@ -11,3 +14,4 @@ target/
 .project
 .settings/
 .DS_Store
+
