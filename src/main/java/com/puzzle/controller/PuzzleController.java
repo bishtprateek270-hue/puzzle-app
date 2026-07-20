@@ -1,0 +1,113 @@
+package com.puzzle.controller;
+
+import com.puzzle.model.PuzzleBoard;
+import com.puzzle.service.PuzzleService;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Controller handling both the page view and REST API for puzzle interactions.
+ */
+@Controller
+public class PuzzleController {
+
+    private static final String SESSION_BOARD = "puzzleBoard";
+    private static final String SESSION_BEST_MOVES = "bestMoves";
+
+    private final PuzzleService puzzleService;
+
+    public PuzzleController(PuzzleService puzzleService) {
+        this.puzzleService = puzzleService;
+    }
+
+    /**
+     * Serves the main puzzle page.
+     */
+    @GetMapping("/")
+    public String index(HttpSession session) {
+        // Create a new game if none exists in session
+        if (session.getAttribute(SESSION_BOARD) == null) {
+            PuzzleBoard board = puzzleService.createNewGame();
+            session.setAttribute(SESSION_BOARD, board);
+        }
+        return "index";
+    }
+
+    /**
+     * Creates a new game and returns the fresh board state.
+     */
+    @PostMapping("/api/new-game")
+    @ResponseBody
+    public Map<String, Object> newGame(HttpSession session) {
+        PuzzleBoard board = puzzleService.createNewGame();
+        session.setAttribute(SESSION_BOARD, board);
+        return buildResponse(board, session);
+    }
+
+    /**
+     * Attempts to move a tile and returns the updated board state.
+     */
+    @PostMapping("/api/move/{tile}")
+    @ResponseBody
+    public Map<String, Object> moveTile(@PathVariable("tile") int tile, HttpSession session) {
+        PuzzleBoard board = (PuzzleBoard) session.getAttribute(SESSION_BOARD);
+
+        if (board == null) {
+            board = puzzleService.createNewGame();
+            session.setAttribute(SESSION_BOARD, board);
+        }
+
+        boolean moved = puzzleService.moveTile(board, tile);
+
+        Map<String, Object> response = buildResponse(board, session);
+        response.put("moved", moved);
+
+        // Update best score on win
+        if (board.isSolved()) {
+            Integer bestMoves = (Integer) session.getAttribute(SESSION_BEST_MOVES);
+            if (bestMoves == null || board.getMoveCount() < bestMoves) {
+                session.setAttribute(SESSION_BEST_MOVES, board.getMoveCount());
+                response.put("newBest", true);
+            }
+        }
+
+        return response;
+    }
+
+    /**
+     * Returns the current board state without making any changes.
+     */
+    @GetMapping("/api/state")
+    @ResponseBody
+    public Map<String, Object> getState(HttpSession session) {
+        PuzzleBoard board = (PuzzleBoard) session.getAttribute(SESSION_BOARD);
+
+        if (board == null) {
+            board = puzzleService.createNewGame();
+            session.setAttribute(SESSION_BOARD, board);
+        }
+
+        return buildResponse(board, session);
+    }
+
+    /**
+     * Builds a JSON-friendly response map from the board state.
+     */
+    private Map<String, Object> buildResponse(PuzzleBoard board, HttpSession session) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("board", board.getFlatBoard());
+        response.put("moves", board.getMoveCount());
+        response.put("solved", board.isSolved());
+        response.put("emptyRow", board.getEmptyRow());
+        response.put("emptyCol", board.getEmptyCol());
+
+        Integer bestMoves = (Integer) session.getAttribute(SESSION_BEST_MOVES);
+        response.put("bestMoves", bestMoves != null ? bestMoves : -1);
+
+        return response;
+    }
+}
