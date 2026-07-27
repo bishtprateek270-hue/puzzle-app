@@ -17,6 +17,8 @@
     const newBestBadge = document.getElementById('new-best-badge');
     const playAgainBtn = document.getElementById('play-again-btn');
     const confettiContainer = document.getElementById('confetti-container');
+    const hintBtn = document.getElementById('hint-btn');
+    const autoSolveBtn = document.getElementById('auto-solve-btn');
 
     // --- Game State ---
     let board = [];          // flat array of 16 ints (0 = empty)
@@ -28,6 +30,7 @@
     let timerStarted = false;
     let isAnimating = false;
     let isInitialLoad = true;
+    let isAutoSolving = false;
 
     // --- Touch handling ---
     let touchStartX = 0;
@@ -42,6 +45,9 @@
             hideWinModal();
             startNewGame();
         });
+
+        hintBtn.addEventListener('click', getHint);
+        autoSolveBtn.addEventListener('click', startAutoSolve);
 
         // Keyboard controls
         window.addEventListener('keydown', handleKeyDown);
@@ -58,7 +64,7 @@
 
     // --- Keyboard Navigation ---
     function handleKeyDown(e) {
-        if (solved || isAnimating) return;
+        if (solved || isAnimating || isAutoSolving) return;
 
         const emptyIndex = board.indexOf(0);
         const emptyRow = Math.floor(emptyIndex / 4);
@@ -112,7 +118,7 @@
     }
 
     function handleTouchEnd(e) {
-        if (solved || isAnimating || !e.changedTouches.length) return;
+        if (solved || isAnimating || isAutoSolving || !e.changedTouches.length) return;
 
         const touchEndX = e.changedTouches[0].clientX;
         const touchEndY = e.changedTouches[0].clientY;
@@ -171,6 +177,9 @@
         stopTimer();
         resetTimer();
         timerStarted = false;
+        isAutoSolving = false;
+        updateButtonsState();
+        clearHints();
 
         try {
             const res = await fetch('/api/new-game', { method: 'POST' });
@@ -182,8 +191,11 @@
         }
     }
 
-    async function moveTile(tileNumber) {
+    async function moveTile(tileNumber, isFromAutoSolve = false) {
         if (isAnimating || solved) return;
+        if (isAutoSolving && !isFromAutoSolve) return;
+
+        clearHints();
 
         // Start timer on first move
         if (!timerStarted) {
@@ -415,6 +427,86 @@
         setTimeout(() => {
             confettiContainer.innerHTML = '';
         }, 4000);
+    }
+
+    // --- AI / Solver Integration ---
+
+    async function getHint() {
+        if (solved || isAnimating || isAutoSolving) return;
+        
+        clearHints();
+        
+        hintBtn.disabled = true;
+        hintBtn.innerHTML = `<span class="btn-icon">⏳</span>Loading...`;
+        
+        try {
+            const res = await fetch('/api/solve', { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.moves && data.moves.length > 0) {
+                const nextTileVal = data.moves[0];
+                highlightHintTile(nextTileVal);
+            }
+        } catch (err) {
+            console.error('Failed to get hint:', err);
+        } finally {
+            hintBtn.disabled = false;
+            hintBtn.innerHTML = `<span class="btn-icon">💡</span>Get Hint`;
+        }
+    }
+    
+    async function startAutoSolve() {
+        if (solved || isAnimating || isAutoSolving) return;
+        
+        clearHints();
+        isAutoSolving = true;
+        updateButtonsState();
+        
+        try {
+            const res = await fetch('/api/solve', { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.moves && data.moves.length > 0) {
+                for (const tileVal of data.moves) {
+                    if (!isAutoSolving || solved) break;
+                    await moveTile(tileVal, true);
+                    await new Promise(resolve => setTimeout(resolve, 250));
+                }
+            }
+        } catch (err) {
+            console.error('Failed to auto solve:', err);
+        } finally {
+            isAutoSolving = false;
+            updateButtonsState();
+        }
+    }
+    
+    function highlightHintTile(tileValue) {
+        const tiles = boardEl.querySelectorAll('.tile');
+        tiles.forEach(tile => {
+            if (parseInt(tile.textContent) === tileValue) {
+                tile.classList.add('hint-tile');
+            }
+        });
+    }
+    
+    function clearHints() {
+        const tiles = boardEl.querySelectorAll('.tile');
+        tiles.forEach(tile => {
+            tile.classList.remove('hint-tile');
+        });
+    }
+    
+    function updateButtonsState() {
+        if (isAutoSolving) {
+            hintBtn.disabled = true;
+            autoSolveBtn.disabled = true;
+            autoSolveBtn.innerHTML = `<span class="btn-icon">⏳</span>Solving...`;
+        } else {
+            hintBtn.disabled = false;
+            autoSolveBtn.disabled = false;
+            autoSolveBtn.innerHTML = `<span class="btn-icon">🤖</span>Auto Solve`;
+        }
     }
 
 })();

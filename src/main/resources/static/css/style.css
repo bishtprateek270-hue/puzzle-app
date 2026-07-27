@@ -335,6 +335,18 @@ body {
     50% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 35px rgba(34, 197, 94, 0.35); }
 }
 
+/* Hint state: tile pulses with a gold border and glow */
+.tile.hint-tile {
+    border-color: rgba(245, 158, 11, 0.8) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 25px rgba(245, 158, 11, 0.4) !important;
+    animation: hintPulse 1s ease-in-out infinite !important;
+}
+
+@keyframes hintPulse {
+    0%, 100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 25px rgba(245, 158, 11, 0.4); }
+    50% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 35px rgba(245, 158, 11, 0.75); }
+}
+
 /* ---------- Controls ---------- */
 .controls {
     display: flex;
@@ -373,6 +385,31 @@ body {
 
 .btn-primary:active {
     transform: translateY(0) scale(0.97);
+}
+
+.btn-secondary {
+    background: var(--glass-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.btn-secondary:hover {
+    background: var(--glass-hover);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.btn-secondary:active {
+    transform: translateY(0) scale(0.97);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 .btn-lg {

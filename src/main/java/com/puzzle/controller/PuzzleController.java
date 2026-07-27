@@ -6,7 +6,9 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -92,6 +94,25 @@ public class PuzzleController {
         }
 
         return buildResponse(board, session);
+    }
+
+    /**
+     * Solves the current puzzle board and returns the sequence of moves.
+     */
+    @PostMapping("/api/solve")
+    @ResponseBody
+    public Map<String, Object> solve(HttpSession session) {
+        PuzzleBoard board = (PuzzleBoard) session.getAttribute(SESSION_BOARD);
+        Map<String, Object> response = new HashMap<>();
+
+        if (board == null || board.isSolved()) {
+            response.put("moves", new ArrayList<>());
+            return response;
+        }
+
+        List<Integer> moves = puzzleService.solvePuzzle(board.getFlatBoard());
+        response.put("moves", moves);
+        return response;
     }
 
     /**
