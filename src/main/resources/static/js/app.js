@@ -233,13 +233,16 @@
 
         const isDirectAdjacent = (Math.abs(tRow - eRow) + Math.abs(tCol - eCol)) === 1;
 
+        let animationPromise = Promise.resolve();
         if (isDirectAdjacent) {
             // Perform optimistic slide animation locally for instantaneous feel
             animateTileSlide(tileIndex, emptyIndex);
+            animationPromise = new Promise(resolve => setTimeout(resolve, 150));
         }
 
         try {
-            const res = await fetch(`/api/move/${tileNumber}`, { method: 'POST' });
+            const resPromise = fetch(`/api/move/${tileNumber}`, { method: 'POST' });
+            const [_, res] = await Promise.all([animationPromise, resPromise]);
             const data = await res.json();
 
             if (data.moved) {
@@ -271,7 +274,7 @@
         const deltaX = toRect.left - fromRect.left;
         const deltaY = toRect.top - fromRect.top;
 
-        fromTile.style.transition = 'transform 120ms cubic-bezier(0.2, 0, 0, 1)';
+        fromTile.style.transition = 'transform 150ms cubic-bezier(0.2, 0, 0, 1)';
         fromTile.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
         fromTile.style.zIndex = '10';
     }
