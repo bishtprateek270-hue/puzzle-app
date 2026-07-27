@@ -6,12 +6,12 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Represents a 4×4 sliding puzzle board.
- * Tile values 1-15 are numbered tiles; 0 is the empty space.
+ * Represents a dynamic sliding puzzle board (e.g. 3x3, 4x4, 5x5).
+ * Tile values 1 to (size*size - 1) are numbered tiles; 0 is the empty space.
  */
 public class PuzzleBoard implements Serializable {
 
-    private static final int SIZE = 4;
+    private int size;
     private int[][] board;
     private int emptyRow;
     private int emptyCol;
@@ -19,19 +19,24 @@ public class PuzzleBoard implements Serializable {
     private boolean solved;
 
     public PuzzleBoard() {
-        this.board = new int[SIZE][SIZE];
+        this(4); // Default to 4x4
+    }
+
+    public PuzzleBoard(int size) {
+        this.size = size;
+        this.board = new int[size][size];
         this.moveCount = 0;
         this.solved = false;
     }
 
     /**
-     * Initializes the board in solved state (1-15, then 0).
+     * Initializes the board in solved state.
      */
     public void initSolved() {
         int value = 1;
-        for (int r = 0; r < SIZE; r++) {
-            for (int c = 0; c < SIZE; c++) {
-                if (r == SIZE - 1 && c == SIZE - 1) {
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
+                if (r == size - 1 && c == size - 1) {
                     board[r][c] = 0;
                     emptyRow = r;
                     emptyCol = c;
@@ -49,7 +54,7 @@ public class PuzzleBoard implements Serializable {
      */
     public void shuffle() {
         List<Integer> tiles = new ArrayList<>();
-        for (int i = 0; i < SIZE * SIZE; i++) {
+        for (int i = 0; i < size * size; i++) {
             tiles.add(i);
         }
 
@@ -58,8 +63,8 @@ public class PuzzleBoard implements Serializable {
         } while (!isSolvable(tiles) || isAlreadySolved(tiles));
 
         int index = 0;
-        for (int r = 0; r < SIZE; r++) {
-            for (int c = 0; c < SIZE; c++) {
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
                 board[r][c] = tiles.get(index);
                 if (board[r][c] == 0) {
                     emptyRow = r;
@@ -74,9 +79,8 @@ public class PuzzleBoard implements Serializable {
 
     /**
      * Checks whether a flat list of tiles represents a solvable puzzle.
-     * A puzzle is solvable if:
-     * - The blank is on an even row from the bottom and inversions are odd, OR
-     * - The blank is on an odd row from the bottom and inversions are even.
+     * - Odd size: solvable if inversions is even.
+     * - Even size: solvable if blank row from bottom and inversions have opposite parities.
      */
     private boolean isSolvable(List<Integer> tiles) {
         int inversions = 0;
@@ -88,13 +92,17 @@ public class PuzzleBoard implements Serializable {
             }
         }
 
-        int blankIndex = tiles.indexOf(0);
-        int blankRowFromBottom = SIZE - (blankIndex / SIZE);
-
-        if (blankRowFromBottom % 2 == 0) {
-            return inversions % 2 != 0;
-        } else {
+        if (size % 2 != 0) {
             return inversions % 2 == 0;
+        } else {
+            int blankIndex = tiles.indexOf(0);
+            int blankRowFromBottom = size - (blankIndex / size);
+
+            if (blankRowFromBottom % 2 == 0) {
+                return inversions % 2 != 0;
+            } else {
+                return inversions % 2 == 0;
+            }
         }
     }
 
@@ -113,12 +121,12 @@ public class PuzzleBoard implements Serializable {
      * Returns true if the move was valid and executed.
      */
     public boolean move(int tileNumber) {
-        if (solved || tileNumber < 1 || tileNumber > 15) return false;
+        if (solved || tileNumber < 1 || tileNumber > (size * size - 1)) return false;
 
         // Find the tile
         int tileRow = -1, tileCol = -1;
-        for (int r = 0; r < SIZE; r++) {
-            for (int c = 0; c < SIZE; c++) {
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
                 if (board[r][c] == tileNumber) {
                     tileRow = r;
                     tileCol = c;
@@ -154,9 +162,9 @@ public class PuzzleBoard implements Serializable {
      */
     private boolean checkSolved() {
         int expected = 1;
-        for (int r = 0; r < SIZE; r++) {
-            for (int c = 0; c < SIZE; c++) {
-                if (r == SIZE - 1 && c == SIZE - 1) {
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
+                if (r == size - 1 && c == size - 1) {
                     if (board[r][c] != 0) return false;
                 } else {
                     if (board[r][c] != expected++) return false;
@@ -168,14 +176,18 @@ public class PuzzleBoard implements Serializable {
 
     // Getters
 
+    public int getSize() {
+        return size;
+    }
+
     public int[][] getBoard() {
         return board;
     }
 
     public int[][] getBoardCopy() {
-        int[][] copy = new int[SIZE][SIZE];
-        for (int r = 0; r < SIZE; r++) {
-            System.arraycopy(board[r], 0, copy[r], 0, SIZE);
+        int[][] copy = new int[size][size];
+        for (int r = 0; r < size; r++) {
+            System.arraycopy(board[r], 0, copy[r], 0, size);
         }
         return copy;
     }
@@ -201,8 +213,8 @@ public class PuzzleBoard implements Serializable {
      */
     public List<Integer> getFlatBoard() {
         List<Integer> flat = new ArrayList<>();
-        for (int r = 0; r < SIZE; r++) {
-            for (int c = 0; c < SIZE; c++) {
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
                 flat.add(board[r][c]);
             }
         }

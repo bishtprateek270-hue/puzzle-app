@@ -44,8 +44,8 @@ public class PuzzleController {
      */
     @PostMapping("/api/new-game")
     @ResponseBody
-    public Map<String, Object> newGame(HttpSession session) {
-        PuzzleBoard board = puzzleService.createNewGame();
+    public Map<String, Object> newGame(@RequestParam(value = "size", defaultValue = "4") int size, HttpSession session) {
+        PuzzleBoard board = puzzleService.createNewGame(size);
         session.setAttribute(SESSION_BOARD, board);
         return buildResponse(board, session);
     }
@@ -70,9 +70,10 @@ public class PuzzleController {
 
         // Update best score on win
         if (board.isSolved()) {
-            Integer bestMoves = (Integer) session.getAttribute(SESSION_BEST_MOVES);
+            String bestKey = SESSION_BEST_MOVES + "_" + board.getSize();
+            Integer bestMoves = (Integer) session.getAttribute(bestKey);
             if (bestMoves == null || board.getMoveCount() < bestMoves) {
-                session.setAttribute(SESSION_BEST_MOVES, board.getMoveCount());
+                session.setAttribute(bestKey, board.getMoveCount());
                 response.put("newBest", true);
             }
         }
@@ -125,8 +126,10 @@ public class PuzzleController {
         response.put("solved", board.isSolved());
         response.put("emptyRow", board.getEmptyRow());
         response.put("emptyCol", board.getEmptyCol());
+        response.put("size", board.getSize());
 
-        Integer bestMoves = (Integer) session.getAttribute(SESSION_BEST_MOVES);
+        String bestKey = SESSION_BEST_MOVES + "_" + board.getSize();
+        Integer bestMoves = (Integer) session.getAttribute(bestKey);
         response.put("bestMoves", bestMoves != null ? bestMoves : -1);
 
         return response;

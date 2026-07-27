@@ -15,10 +15,17 @@ import java.util.List;
 public class PuzzleService {
 
     /**
-     * Creates a new, shuffled puzzle board.
+     * Creates a new, shuffled puzzle board of default size (4x4).
      */
     public PuzzleBoard createNewGame() {
-        PuzzleBoard board = new PuzzleBoard();
+        return createNewGame(4);
+    }
+
+    /**
+     * Creates a new, shuffled puzzle board of specified size.
+     */
+    public PuzzleBoard createNewGame(int size) {
+        PuzzleBoard board = new PuzzleBoard(size);
         board.shuffle();
         return board;
     }

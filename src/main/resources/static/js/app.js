@@ -19,9 +19,10 @@
     const confettiContainer = document.getElementById('confetti-container');
     const hintBtn = document.getElementById('hint-btn');
     const autoSolveBtn = document.getElementById('auto-solve-btn');
+    const levelBtns = document.querySelectorAll('.level-btn');
 
     // --- Game State ---
-    let board = [];          // flat array of 16 ints (0 = empty)
+    let board = [];          // flat array of ints (0 = empty)
     let moveCount = 0;
     let bestMoves = -1;
     let solved = false;
@@ -31,6 +32,7 @@
     let isAnimating = false;
     let isInitialLoad = true;
     let isAutoSolving = false;
+    let currentSize = 4;     // Default board size (4x4)
 
     // --- Touch handling ---
     let touchStartX = 0;
@@ -49,6 +51,13 @@
         hintBtn.addEventListener('click', getHint);
         autoSolveBtn.addEventListener('click', startAutoSolve);
 
+        levelBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const size = parseInt(btn.getAttribute('data-size'));
+                changeLevel(size);
+            });
+        });
+
         // Keyboard controls
         window.addEventListener('keydown', handleKeyDown);
 
@@ -66,9 +75,10 @@
     function handleKeyDown(e) {
         if (solved || isAnimating || isAutoSolving) return;
 
+        const size = Math.sqrt(board.length);
         const emptyIndex = board.indexOf(0);
-        const emptyRow = Math.floor(emptyIndex / 4);
-        const emptyCol = emptyIndex % 4;
+        const emptyRow = Math.floor(emptyIndex / size);
+        const emptyCol = emptyIndex % size;
 
         let targetRow = emptyRow;
         let targetCol = emptyCol;
@@ -99,9 +109,9 @@
                 return;
         }
 
-        if (targetRow >= 0 && targetRow < 4 && targetCol >= 0 && targetCol < 4) {
+        if (targetRow >= 0 && targetRow < size && targetCol >= 0 && targetCol < size) {
             e.preventDefault();
-            const targetIndex = targetRow * 4 + targetCol;
+            const targetIndex = targetRow * size + targetCol;
             const tileVal = board[targetIndex];
             if (tileVal !== 0) {
                 moveTile(tileVal);
@@ -129,9 +139,10 @@
 
         if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < minSwipeDistance) return;
 
+        const size = Math.sqrt(board.length);
         const emptyIndex = board.indexOf(0);
-        const emptyRow = Math.floor(emptyIndex / 4);
-        const emptyCol = emptyIndex % 4;
+        const emptyRow = Math.floor(emptyIndex / size);
+        const emptyCol = emptyIndex % size;
 
         let targetRow = emptyRow;
         let targetCol = emptyCol;
@@ -152,8 +163,8 @@
             }
         }
 
-        if (targetRow >= 0 && targetRow < 4 && targetCol >= 0 && targetCol < 4) {
-            const targetIndex = targetRow * 4 + targetCol;
+        if (targetRow >= 0 && targetRow < size && targetCol >= 0 && targetCol < size) {
+            const targetIndex = targetRow * size + targetCol;
             const tileVal = board[targetIndex];
             if (tileVal !== 0) {
                 moveTile(tileVal);
@@ -182,7 +193,7 @@
         clearHints();
 
         try {
-            const res = await fetch('/api/new-game', { method: 'POST' });
+            const res = await fetch(`/api/new-game?size=${currentSize}`, { method: 'POST' });
             const data = await res.json();
             applyState(data);
             renderBoard(true);
@@ -206,6 +217,7 @@
         isAnimating = true;
 
         // Optimistic check & quick animation
+        const size = Math.sqrt(board.length);
         const tileIndex = board.indexOf(tileNumber);
         const emptyIndex = board.indexOf(0);
 
@@ -214,10 +226,10 @@
             return;
         }
 
-        const tRow = Math.floor(tileIndex / 4);
-        const tCol = tileIndex % 4;
-        const eRow = Math.floor(emptyIndex / 4);
-        const eCol = emptyIndex % 4;
+        const tRow = Math.floor(tileIndex / size);
+        const tCol = tileIndex % size;
+        const eRow = Math.floor(emptyIndex / size);
+        const eCol = emptyIndex % size;
 
         const isDirectAdjacent = (Math.abs(tRow - eRow) + Math.abs(tCol - eCol)) === 1;
 
@@ -269,9 +281,22 @@
         moveCount = data.moves;
         solved = data.solved;
         bestMoves = data.bestMoves;
+        currentSize = data.size || Math.sqrt(board.length);
 
         moveCountEl.textContent = moveCount;
         bestScoreEl.textContent = bestMoves > 0 ? bestMoves : '—';
+
+        // Update active class on difficulty selectors in case of external/initial load
+        levelBtns.forEach(btn => {
+            if (parseInt(btn.getAttribute('data-size')) === currentSize) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Set class on board for dynamic styling
+        boardEl.className = 'puzzle-board grid-' + currentSize;
     }
 
     // --- Rendering ---
@@ -279,9 +304,10 @@
     function renderBoard(animateEntrance = false) {
         boardEl.innerHTML = '';
 
+        const size = Math.sqrt(board.length);
         const emptyIndex = board.indexOf(0);
-        const emptyRow = Math.floor(emptyIndex / 4);
-        const emptyCol = emptyIndex % 4;
+        const emptyRow = Math.floor(emptyIndex / size);
+        const emptyCol = emptyIndex % size;
 
         board.forEach((value, index) => {
             const tile = document.createElement('div');
@@ -293,8 +319,8 @@
                 tile.textContent = value;
 
                 // Check if this tile is adjacent to empty
-                const row = Math.floor(index / 4);
-                const col = index % 4;
+                const row = Math.floor(index / size);
+                const col = index % size;
                 const isAdj = isAdjacent(row, col, emptyRow, emptyCol);
 
                 if (isAdj && !solved) {
@@ -506,6 +532,33 @@
             hintBtn.disabled = false;
             autoSolveBtn.disabled = false;
             autoSolveBtn.innerHTML = `<span class="btn-icon">🤖</span>Auto Solve`;
+        }
+    }
+
+    async function changeLevel(size) {
+        if (isAnimating || isAutoSolving) return;
+
+        stopTimer();
+        resetTimer();
+        timerStarted = false;
+        clearHints();
+        currentSize = size;
+
+        levelBtns.forEach(btn => {
+            if (parseInt(btn.getAttribute('data-size')) === size) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        try {
+            const res = await fetch(`/api/new-game?size=${size}`, { method: 'POST' });
+            const data = await res.json();
+            applyState(data);
+            renderBoard(true);
+        } catch (err) {
+            console.error('Failed to change level:', err);
         }
     }
 

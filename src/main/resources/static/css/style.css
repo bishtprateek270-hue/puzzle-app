@@ -244,10 +244,26 @@ body {
 
 .puzzle-board {
     display: grid;
-    grid-template-columns: repeat(4, var(--tile-size));
-    grid-template-rows: repeat(4, var(--tile-size));
+    grid-template-columns: repeat(var(--grid-size, 4), var(--tile-size));
+    grid-template-rows: repeat(var(--grid-size, 4), var(--tile-size));
     gap: var(--tile-gap);
     position: relative;
+}
+
+/* Dynamic Grid & Tile Sizes */
+.puzzle-board.grid-3 {
+    --grid-size: 3;
+    --tile-size: 105px;
+}
+
+.puzzle-board.grid-4 {
+    --grid-size: 4;
+    --tile-size: 90px;
+}
+
+.puzzle-board.grid-5 {
+    --grid-size: 5;
+    --tile-size: 72px;
 }
 
 /* ---------- Tiles ---------- */
@@ -410,6 +426,49 @@ body {
     cursor: not-allowed;
     transform: none !important;
     box-shadow: none !important;
+}
+
+/* ---------- Difficulty Selector ---------- */
+.level-selector {
+    display: flex;
+    gap: 8px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    width: 100%;
+    justify-content: center;
+    max-width: 380px;
+    position: relative;
+    z-index: 10;
+}
+
+.level-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: calc(var(--radius-md) - 6px);
+    color: var(--text-secondary);
+    padding: 10px 16px;
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-normal);
+    text-align: center;
+}
+
+.level-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.level-btn.active {
+    background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+    color: white;
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
 }
 
 .btn-lg {
@@ -610,9 +669,14 @@ body {
     }
 }
 
+@media (max-width: 480px) {
+    .puzzle-board.grid-3 { --tile-size: 85px; }
+    .puzzle-board.grid-4 { --tile-size: 70px; }
+    .puzzle-board.grid-5 { --tile-size: 56px; }
+}
+
 @media (max-width: 360px) {
-    :root {
-        --tile-size: 60px;
-        --tile-gap: 5px;
-    }
+    .puzzle-board.grid-3 { --tile-size: 75px; }
+    .puzzle-board.grid-4 { --tile-size: 60px; }
+    .puzzle-board.grid-5 { --tile-size: 48px; }
 }
