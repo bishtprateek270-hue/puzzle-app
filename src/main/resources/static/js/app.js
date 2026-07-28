@@ -65,7 +65,8 @@
         window.addEventListener('keydown', handleKeyDown);
 
         // Touch swipe controls
-        boardEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+        boardEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+        boardEl.addEventListener('touchmove', handleTouchMove, { passive: false });
         boardEl.addEventListener('touchend', handleTouchEnd, { passive: true });
 
         // Load initial state from server
@@ -124,23 +125,31 @@
 
     // --- Touch Swiping ---
     function handleTouchStart(e) {
+        if (solved || isAnimating || isAutoSolving) return;
         if (e.touches.length === 1) {
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
+            touchActive = true;
         }
     }
 
-    function handleTouchEnd(e) {
-        if (solved || isAnimating || isAutoSolving || !e.changedTouches.length) return;
+    function handleTouchMove(e) {
+        if (!touchActive || solved || isAnimating || isAutoSolving || !e.touches.length) return;
 
-        const touchEndX = e.changedTouches[0].clientX;
-        const touchEndY = e.changedTouches[0].clientY;
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
 
-        const deltaX = touchEndX - touchStartX;
-        const deltaY = touchEndY - touchStartY;
-        const minSwipeDistance = 30;
+        const deltaX = currentX - touchStartX;
+        const deltaY = currentY - touchStartY;
+        const swipeThreshold = 30; // pixels
 
-        if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < minSwipeDistance) return;
+        if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < swipeThreshold) return;
+
+        // Prevent scrolling while swiping
+        if (e.cancelable) {
+            e.preventDefault();
+        }
+        touchActive = false; // Prevent multiple swipes in one motion
 
         const size = Math.sqrt(board.length);
         const emptyIndex = board.indexOf(0);
@@ -173,6 +182,10 @@
                 moveTile(tileVal);
             }
         }
+    }
+
+    function handleTouchEnd(e) {
+        touchActive = false;
     }
 
     // --- API & State Synchronization ---
