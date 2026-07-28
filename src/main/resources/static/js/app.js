@@ -33,6 +33,9 @@
     let isInitialLoad = true;
     let isAutoSolving = false;
     let currentSize = 4;     // Default board size (4x4)
+    let pendingMovesQueue = [];
+    let isProcessingQueue = false;
+    let winModalShown = false;
 
     // --- Touch handling ---
     let touchStartX = 0;
@@ -202,9 +205,10 @@
         }
     }
 
-    async function moveTile(tileNumber, isFromAutoSolve = false) {
-        if (isAnimating || solved) return;
-        if (isAutoSolving && !isFromAutoSolve) return;
+    function moveTile(tileNumber, isFromAutoSolve = false) {
+        if (solved) return Promise.resolve();
+        if (isAutoSolving && !isFromAutoSolve) return Promise.resolve();
+        if (isAnimating && !isFromAutoSolve) return Promise.resolve();
 
         clearHints();
 
@@ -214,16 +218,13 @@
             startTimer();
         }
 
-        isAnimating = true;
-
-        // Optimistic check & quick animation
+        // Validate move locally
         const size = Math.sqrt(board.length);
         const tileIndex = board.indexOf(tileNumber);
         const emptyIndex = board.indexOf(0);
 
         if (tileIndex === -1 || emptyIndex === -1) {
-            isAnimating = false;
-            return;
+            return Promise.resolve();
         }
 
         const tRow = Math.floor(tileIndex / size);
@@ -232,48 +233,165 @@
         const eCol = emptyIndex % size;
 
         const isDirectAdjacent = (Math.abs(tRow - eRow) + Math.abs(tCol - eCol)) === 1;
-
-        if (isDirectAdjacent) {
-            // Perform optimistic slide animation locally for instantaneous feel
-            animateTileSlide(tileIndex, emptyIndex);
+        if (!isDirectAdjacent) {
+            return Promise.resolve();
         }
 
-        try {
-            const res = await fetch(`/api/move/${tileNumber}`, { method: 'POST' });
-            const data = await res.json();
+        isAnimating = true;
 
-            if (data.moved) {
-                applyState(data);
-                renderBoard(false);
+        // Perform optimistic move immediately
+        swapTilesInDOM(tileIndex, emptyIndex);
 
-                if (data.solved) {
-                    stopTimer();
-                    showWinModal(data.newBest === true);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to move tile:', err);
-        } finally {
-            isAnimating = false;
+        // Update local board array
+        board[emptyIndex] = tileNumber;
+        board[tileIndex] = 0;
+
+        // Update moves count locally
+        moveCount++;
+        moveCountEl.textContent = moveCount;
+
+        // Update classes
+        updateMovableClasses();
+
+        // Check solve status locally
+        if (checkSolvedLocally()) {
+            solved = true;
+            stopTimer();
+            showWinModal(false);
         }
+
+        // Queue the server sync request
+        pendingMovesQueue.push(tileNumber);
+        processPendingMovesQueue();
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                isAnimating = false;
+                resolve();
+            }, 120);
+        });
     }
 
-    function animateTileSlide(fromIndex, toIndex) {
-        const tiles = boardEl.querySelectorAll('.tile');
+    function swapTilesInDOM(fromIndex, toIndex) {
+        const tiles = Array.from(boardEl.children);
         const fromTile = tiles[fromIndex];
         const toTile = tiles[toIndex];
 
         if (!fromTile || !toTile) return;
 
+        // Get bounding boxes before DOM manipulation
         const fromRect = fromTile.getBoundingClientRect();
-        const toRect = toTile.getBoundingClientRect();
 
-        const deltaX = toRect.left - fromRect.left;
-        const deltaY = toRect.top - fromRect.top;
+        // Swap the nodes in the DOM
+        const parent = fromTile.parentNode;
+        const fromSibling = fromTile.nextSibling === toTile ? fromTile : fromTile.nextSibling;
+        if (fromTile.nextSibling === toTile) {
+            parent.insertBefore(toTile, fromTile);
+        } else if (toTile.nextSibling === fromTile) {
+            parent.insertBefore(fromTile, toTile);
+        } else {
+            const toSibling = toTile.nextSibling;
+            parent.insertBefore(toTile, fromSibling);
+            parent.insertBefore(fromTile, toSibling);
+        }
 
-        fromTile.style.transition = 'transform 100ms cubic-bezier(0.2, 0, 0, 1)';
+        // Get bounding box after DOM swap
+        const newFromRect = fromTile.getBoundingClientRect();
+
+        // Invert: calculate the offset
+        const deltaX = fromRect.left - newFromRect.left;
+        const deltaY = fromRect.top - newFromRect.top;
+
+        // Apply visual transformation immediately with no transition
+        fromTile.style.transition = 'none';
         fromTile.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
         fromTile.style.zIndex = '10';
+
+        // Force a layout reflow
+        fromTile.offsetHeight;
+
+        // Trigger smooth transition back to the natural position
+        fromTile.style.transition = 'transform 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        fromTile.style.transform = 'translate(0, 0)';
+
+        // Clean up transition styles and zIndex after the transition completes
+        setTimeout(() => {
+            fromTile.style.transition = '';
+            fromTile.style.transform = '';
+            fromTile.style.zIndex = '';
+        }, 120);
+    }
+
+    function updateMovableClasses() {
+        const tiles = boardEl.querySelectorAll('.tile');
+        const size = Math.sqrt(board.length);
+        const emptyIndex = board.indexOf(0);
+        const emptyRow = Math.floor(emptyIndex / size);
+        const emptyCol = emptyIndex % size;
+
+        tiles.forEach((tile, index) => {
+            if (board[index] === 0) {
+                tile.className = 'tile empty';
+            } else {
+                tile.className = 'tile';
+                const row = Math.floor(index / size);
+                const col = index % size;
+                const isAdj = isAdjacent(row, col, emptyRow, emptyCol);
+                if (isAdj && !solved) {
+                    tile.classList.add('movable');
+                }
+                if (solved) {
+                    tile.classList.add('solved-tile');
+                }
+            }
+        });
+    }
+
+    function checkSolvedLocally() {
+        for (let i = 0; i < board.length - 1; i++) {
+            if (board[i] !== i + 1) return false;
+        }
+        return board[board.length - 1] === 0;
+    }
+
+    async function processPendingMovesQueue() {
+        if (isProcessingQueue) return;
+        isProcessingQueue = true;
+
+        const arraysEqual = (a, b) => a.length === b.length && a.every((val, i) => val === b[i]);
+
+        while (pendingMovesQueue.length > 0) {
+            const tileVal = pendingMovesQueue[0];
+            try {
+                const res = await fetch(`/api/move/${tileVal}`, { method: 'POST' });
+                const data = await res.json();
+
+                if (pendingMovesQueue.length === 1) {
+                    // Sync backend state on the final sync response
+                    applyState(data);
+                    if (!arraysEqual(board, data.board)) {
+                        console.warn("Client/Server board state desync detected! Forcing re-render.");
+                        board = data.board;
+                        renderBoard(false);
+                    }
+                    if (data.solved) {
+                        stopTimer();
+                        showWinModal(data.newBest === true);
+                    }
+                } else {
+                    // Just update the record high score / best score if it changed
+                    if (data.bestMoves !== undefined) {
+                        bestMoves = data.bestMoves;
+                        bestScoreEl.textContent = bestMoves > 0 ? bestMoves : '—';
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to sync move with server:', err);
+            }
+            pendingMovesQueue.shift();
+        }
+
+        isProcessingQueue = false;
     }
 
     function applyState(data) {
@@ -396,15 +514,19 @@
             newBestBadge.style.display = 'none';
         }
 
-        setTimeout(() => {
-            winModal.classList.add('active');
-            spawnConfetti();
-        }, 300);
+        if (!winModalShown) {
+            winModalShown = true;
+            setTimeout(() => {
+                winModal.classList.add('active');
+                spawnConfetti();
+            }, 200);
+        }
     }
 
     function hideWinModal() {
         winModal.classList.remove('active');
         confettiContainer.innerHTML = '';
+        winModalShown = false;
     }
 
     // --- Confetti ---
